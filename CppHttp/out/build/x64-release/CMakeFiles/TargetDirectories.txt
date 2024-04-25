@@ -1,5 +1,0 @@
-C:/Users/Ivaylo/source/repos/Http-Server/CppHttp/out/build/x64-release/CMakeFiles/edit_cache.dir
-C:/Users/Ivaylo/source/repos/Http-Server/CppHttp/out/build/x64-release/CMakeFiles/rebuild_cache.dir
-C:/Users/Ivaylo/source/repos/Http-Server/CppHttp/out/build/x64-release/CppHttp/CMakeFiles/CppHttp.dir
-C:/Users/Ivaylo/source/repos/Http-Server/CppHttp/out/build/x64-release/CppHttp/CMakeFiles/edit_cache.dir
-C:/Users/Ivaylo/source/repos/Http-Server/CppHttp/out/build/x64-release/CppHttp/CMakeFiles/rebuild_cache.dir
