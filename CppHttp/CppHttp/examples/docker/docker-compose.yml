@@ -1,0 +1,9 @@
+version: '3.9'
+
+services:
+  cpphttp:
+    build: .
+    command: sh -c "stdbuf -oL ./build/CppHttp"
+    ports:
+      - "80:80"
+      - "8080:8080"

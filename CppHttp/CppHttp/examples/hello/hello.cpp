@@ -1,4 +1,4 @@
-#include "../include/CppHttp.hpp"
+#include <CppHttp.hpp>
 #include <iostream>
 #include <optional>
 #include <string>
