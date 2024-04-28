@@ -8,7 +8,7 @@
 
 ## [Hello, World!](https://github.com/ISBachvarov21/CppHttp/tree/main/CppHttp/CppHttp/examples/hello)
 ```cpp
-#include <CppHttp.hpp>
+#include "../include/CppHttp.hpp"
 #include <iostream>
 #include <optional>
 #include <string>
