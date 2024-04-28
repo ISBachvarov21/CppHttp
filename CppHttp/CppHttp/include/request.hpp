@@ -7,13 +7,20 @@
 #include <iostream>
 #include <sstream>
 #include <regex>
-
-#define WIN32_LEAN_AND_MEAN
-#define _WINSOCK_DEPRECATED_NO_WARNINGS
-#include <Windows.h>
-#include <WinSock2.h>
-#include <WS2tcpip.h>
 #include "ctre.hpp"
+
+#ifdef _WIN32 || _WIN64 || _MSC_VER
+	#define WIN32_LEAN_AND_MEAN
+	#define _WINSOCK_DEPRECATED_NO_WARNINGS
+	#include <Windows.h>
+	#include <WinSock2.h>
+	#include <WS2tcpip.h>
+
+#elif defined(__linux__) || defined(__APPLE__)
+	#include <sys/socket.h>
+	#define SOCKET int
+	#define INVALID_SOCKET -1
+#endif
 
 namespace CppHttp {
 	namespace Utils {
@@ -161,7 +168,7 @@ namespace CppHttp {
 		struct RequestInformation {
 			RequestInformation() = default;
 			
-			RequestInformation(std::string& req, SOCKET& sender) :
+			RequestInformation(std::string req, SOCKET sender) :
 				sender(sender),
 				original(req),
 				route(CppHttp::Utils::GetRoute(original)),
@@ -186,7 +193,7 @@ namespace CppHttp {
 				this->m_info = {};
 			}
 
-			Request(std::string& req, SOCKET& sender) {
+			Request(std::string req, SOCKET sender) {
 				this->m_info = {
 					req,
 					sender

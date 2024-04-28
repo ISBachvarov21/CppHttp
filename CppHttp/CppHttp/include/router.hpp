@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Debug.hpp"
+#include "debug.hpp"
 #include <functional>
 #include <iostream>
 #include <sstream>
@@ -8,10 +8,14 @@
 #include <string>
 #include <optional>
 #include <unordered_map>
-#include "Event.hpp"
-#include "Request.hpp"
-#include "ResponseType.hpp"
+#include "event.hpp"
+#include "request.hpp"
+#include "responsetype.hpp"
 #include "nlohmann/json.hpp"
+
+#ifdef __linux__ || __APPLE__
+	#include <errno.h>
+#endif
 
 using json = nlohmann::json;
 
@@ -210,8 +214,14 @@ namespace CppHttp {
 					while (totalBytesSent < header.size()) {
 						bytesSent = send(req.m_info.sender, header.data(), header.size(), 0);
 						if (bytesSent < 0) {
-							std::cout << "\033[31mFailed to send message...\033[0m\n";
-							std::cout << "\033[31mError code: " << WSAGetLastError() << "\033[0m\n";
+							std::cout << "\033[31m[-] Failed to send message...\033[0m\n";
+
+							#ifdef _WIN32 || _WIN64 || _MSC_VER
+								std::cout << "\033[31m[-] Error code: " << WSAGetLastError() << "\033[0m\n";
+							#elif defined(__linux__) || defined(__APPLE__)
+								std::cout << "\033[31m[-] Error code: " << errno << "\033[0m\n";
+								std::cout << "\033[31m[-] Error message: " << strerror(errno) << "\033[0m\n";
+							#endif
 						}
 
 						totalBytesSent += bytesSent;

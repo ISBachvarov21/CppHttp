@@ -1,192 +1,296 @@
-#pragma once
-
-#include "Debug.hpp"
-#include "Event.hpp"
-#include "Router.hpp"
+#include "debug.hpp"
+#include "event.hpp"
+#include "router.hpp"
 #include <iostream>
 #include <functional>
 #include <thread>
 #include <stdexcept>
 #include <string>
+#include <future>
+#include <queue>
+#include <mutex>
+#include <condition_variable>
+#include <syncstream>
 
-#define WIN32_LEAN_AND_MEAN
-#define _WINSOCK_DEPRECATED_NO_WARNINGS
-#include <Windows.h>
-#include <WinSock2.h>
-#include <WS2tcpip.h>
+#ifdef _WIN32 || _WIN64 || _MSC_VER
+    #define WIN32_LEAN_AND_MEAN
+    #define _WINSOCK_DEPRECATED_NO_WARNINGS
+    #define WINDOWS
+    #include <Windows.h>
+    #include <WinSock2.h>
+    #include <WS2tcpip.h>
 
-#pragma comment (lib, "Ws2_32.lib")
+    #pragma comment (lib, "Ws2_32.lib")
+#elif defined(__linux__) || defined(__APPLE__)
+    #include <sys/socket.h>
+    #include <netinet/in.h>
+    #include <arpa/inet.h>
+    #include <unistd.h>
+    #include <fcntl.h>
+    #define SOCKET int
+    #define INVALID_SOCKET -1
+    #define LINUX
+    #define closesocket close
+	#define ioctlsocket ioctl
+#endif
 
 namespace CppHttp {
-	namespace Net {
-		// Server class
-		class TcpListener {
-			public:
-				TcpListener() {
-					this->InitWSA();
-				}
-				~TcpListener() {
-					this->Close();
-				}
+    namespace Net {
+        class TcpListener {
+        public:
+            TcpListener() {
+                #ifdef WINDOWS
+                    this->InitWSA();
+                #endif
+            }
+            ~TcpListener() {
+                this->Close();
+            }
 
-				void CreateSocket() {
-					this->listener = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+            void CreateSocket() {
+                this->listener = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 
-					if (this->listener == INVALID_SOCKET) {
-						std::cout << "\033[31m[-] Failed to create socket...\033[0m\n";
-						std::cout << "\033[31m[-] Error code: " << WSAGetLastError() << "\033[0m\n";
-						throw std::runtime_error("Failed to create socket");
-					}
+                if (this->listener == INVALID_SOCKET) {
+                    std::cout << "\033[31m[-] Failed to create socket...\033[0m\n";
 
-					std::cout << "\033[1;32m[+] Created socket\033[0m\n";
-				}
+                    #ifdef WINDOWS
+                        std::cout << "\033[31m[-] WSA error code: " << WSAGetLastError() << "\033[0m\n";
+                    #elif defined(LINUX)
+						std::cout << "\033[31m[-] Error code: " << errno << "\033[0m\n";
+                        std::cout << "\033[31m[-] Error message: " << strerror(errno) << "\033[0m\n";
+                    #endif
 
-				void Listen(const char* ip, uint_fast16_t port, uint_fast8_t maxConnections) {
-					this->server.sin_family = AF_INET;
-					this->server.sin_addr.S_un.S_addr = inet_addr(ip);
-					this->server.sin_port = htons(port);
-					this->serverLen = sizeof(this->server);
-					if (bind(this->listener, (SOCKADDR*)&this->server, this->serverLen) != 0) {
-						std::cout << "\033[31m[-] Failed to bind socket...\033[0m\n";
-						std::cout << "\033[31m[-] Error code: " << WSAGetLastError() << "\033[0m\n";
-						throw std::runtime_error("Failed to bind socket");
-					}
-					std::cout << "\033[1;32m[+] Bound socket\033[0m\n";
+                    throw std::runtime_error("Failed to create socket");
+                }
 
-					// Listen
-					int backlog = 20;
-					if (listen(this->listener, maxConnections) != 0) {
-						std::cout << "\033[31m[-] Failed to listen...\033[0m\n";
-						std::cout << "\033[31m[-] Error code: " << WSAGetLastError() << "\033[0m\n";
+                std::cout << "\033[1;32m[+] Created socket\033[0m\n";
+            }
 
-						throw std::runtime_error("Failed to listen");
-					}
-					std::cout << "\033[1;32m[+] Started listening on " << ip << ':' << port << " with " << (int)maxConnections << " max connections\033[0m\n";
+            void Listen(const char* ip, uint_fast16_t port, uint_fast8_t maxConnections) {
+                this->InitThreadPool(maxConnections);
 
-					// Accept
-					while (true) {
-						try {
-							this->Accept();
-						}
-						catch (std::runtime_error& e) {
-							std::cout << "\033[31m[-] Error: " << e.what() << "\033[0m\n";
-						}
-					}
-					this->Close();
-				}
+                this->server.sin_family = AF_INET;
 
-				void Close() {
-					closesocket(this->listener);
-					WSACleanup();
-				}
+                #ifdef WINDOWS
+                    this->server.sin_addr.S_un.S_addr = inet_addr(ip);
+                #elif defined(LINUX)
+                    this->server.sin_addr.s_addr = inet_addr(ip);
+                #endif
 
-				void SetOnConnect(std::function<void(SOCKET)> callback) {
-					this->onConnect.Attach(callback);
-				}
+                this->server.sin_port = htons(port);
+                this->serverLen = sizeof(this->server);
+                if (bind(this->listener, (struct sockaddr*)&this->server, this->serverLen) != 0) {
+                    std::cout << "\033[31m[-] Failed to bind socket...\033[0m\n";
+                    
+                    #ifdef WINDOWS
+                        std::cout << "\033[31m[-] WSA error code: " << WSAGetLastError() << "\033[0m\n";
+                    #elif defined(LINUX)
+                        std::cout << "\033[31m[-] Error code: " << errno << "\033[0m\n";
+                        std::cout << "\033[31m[-] Error message: " << strerror(errno) << "\033[0m\n";
+                    #endif
+                    throw std::runtime_error("Failed to bind socket");
+                }
+                std::cout << "\033[1;32m[+] Bound socket\033[0m\n";
 
-				void SetOnDisconnect(std::function<void(SOCKET)> callback) {
-					this->onDisconnect.Attach(callback);
-				}
-				
-				void SetOnReceive(std::function<void(Request&)> callback) {
-					this->onReceive.Attach(callback);
-				}
-				
-				void SetBlocking(bool blocking) {
-					u_long mode = blocking ? 0 : 1;
-					ioctlsocket(this->listener, FIONBIO, &mode);
-				}
+                int backlog = 20;
+                if (listen(this->listener, maxConnections) != 0) {
+                    std::cout << "\033[31m[-] Failed to listen...\033[0m\n"; 
+                    #ifdef WINDOWS
+                        std::cout << "\033[31m[-] WSA error code: " << WSAGetLastError() << "\033[0m\n";
+                    #elif defined(LINUX)
+                        std::cout << "\033[31m[-] Error code: " << errno << "\033[0m\n";
+                        std::cout << "\033[31m[-] Error message: " << strerror(errno) << "\033[0m\n";
+                    #endif
+
+                    throw std::runtime_error("Failed to listen");
+                }
+                std::cout << "\033[1;32m[+] Started listening on " << ip << ':' << port << " with " << (int)maxConnections << " max connections\033[0m\n";
 
 
-			private:
-				SOCKET listener = INVALID_SOCKET;
-				SOCKET newConnection = INVALID_SOCKET;
-				WSADATA wsaData;
-				sockaddr_in server;
+                while (true) {
+                    try {
+                        this->Accept();
+                    }
+                    catch (std::runtime_error& e) {
+                        std::cout << "\033[31m[-] Error: " << e.what() << "\033[0m\n";
+                    }
+                }
+                this->Close();
+            }
 
-				//Request req = Request();
+            void Close() {
 
-				int serverLen;
+                closesocket(this->listener);
 
-				Event<void, SOCKET> onConnect;
-				Event<void, SOCKET> onDisconnect;
-				Event<void, Request&> onReceive;
+                #ifdef WINDOWS
+                    WSACleanup();
+                #endif
+            }
 
-				void Accept() {
-					Request req = Request();
-					while (true) {
-						this->newConnection = accept(listener, (SOCKADDR*)&this->server, &this->serverLen);
-						if (this->newConnection == INVALID_SOCKET) {
-							std::cout << "\033[31m[-] Failed to accept new connection...\033[0m\n";
-							std::cout << "\033[31m[-] Error code: " << WSAGetLastError() << "\033[0m\n";
+            void SetOnConnect(std::function<void(SOCKET)> callback) {
+                this->onConnect.Attach(callback);
+            }
 
-							closesocket(this->newConnection);
+            void SetOnDisconnect(std::function<void(SOCKET)> callback) {
+                this->onDisconnect.Attach(callback);
+            }
 
-							throw std::runtime_error("Failed to accept new connection");
-						}
+            void SetOnReceive(std::function<void(Request&)> callback) {
+                this->onReceive.Attach(callback);
+            }
 
-						std::cout << "\033[1;32m[+] Accepted new connection...\033[0m\n";
-						//std::cout << "\033[1;32m[+] Invoking onConnect...\033[0m\n";
+            void SetBlocking(bool blocking) {
+                #ifdef WINDOWS
+                    u_long mode = blocking ? 0 : 1;
+                    ioctlsocket(this->listener, FIONBIO, &mode);
+                #elif defined(LINUX)
+                    int flags = fcntl(this->listener, F_GETFL, 0);
+                    if (blocking)
+                        flags &= ~O_NONBLOCK;
+                    else
+                        flags |= O_NONBLOCK;
+                    fcntl(this->listener, F_SETFL, flags);
+                #endif
+            }
 
-						this->onConnect.Invoke(this->newConnection);
 
-						char* buffer = new char[4096];
+        private:
+            SOCKET listener = INVALID_SOCKET;
+            sockaddr_in server;
 
-						memset(buffer, 0, 4096);
+            #ifdef WINDOWS
+                WSADATA wsaData;
+            #endif
 
-						if (recv(this->newConnection, buffer, 4096, 0) < 0) {
-							std::cout << "\033[31m[-] Failed to read client request\033[0m\n";
-							std::cout << "\033[31m[-] Error code: " << WSAGetLastError() << "\033[0m\n";
+            //Request req = Request();
 
-							closesocket(this->newConnection);
-							delete[] buffer;
+            int serverLen;
 
-							throw std::runtime_error("Failed to read client request");
-						}
+            Event<void, SOCKET> onConnect;
+            Event<void, SOCKET> onDisconnect;
+            Event<void, Request&> onReceive;
 
-						std::cout << "\033[1;32m[+] Received client request\033[0m\n";
+            std::vector<std::future<void>> futures;
+            std::queue<std::function<void()>> tasks;
+            std::vector<std::thread> threads;
+            std::mutex queueMutex;
+            std::condition_variable condition;
 
-						std::string data = "";
-						data = std::string(buffer);
+            void InitThreadPool(const int maxConnections) {
+                for (int i = 0; i < maxConnections; ++i) {
+                    threads.emplace_back([this]() {
+                        while (true) {
+                            std::function<void()> task;
+                            {
+                                std::unique_lock<std::mutex> lock(queueMutex);
+                                condition.wait(lock, [this]() { return !tasks.empty(); });
+                                task = std::move(tasks.front());
+                                tasks.pop();
+                            }
+                            task();
+                        }
+                    });
+                }
+            }
 
-						if (data == "") {
-							std::cout << "\033[31m[-] Failed to read client request\033[0m\n";
-							std::cout << "\033[31m[-] Error code: " << WSAGetLastError() << "\033[0m\n";
+            void Accept() {
+                #ifdef WINDOWS
+                    SOCKET newConnection = accept(listener, (SOCKADDR*)&this->server, &this->serverLen);
+                #elif defined(LINUX)
+                    SOCKET newConnection = accept(listener, (struct sockaddr*)&this->server, (socklen_t*)&this->serverLen);
+                #endif
 
-							closesocket(this->newConnection);
-							delete[] buffer;
+                if (newConnection == INVALID_SOCKET) {
+                    std::osyncstream(std::osyncstream(std::cout)) << "\033[31m[-] Failed to accept new connection...\033[0m\n"; 
+                    #ifdef WINDOWS
+                        std::osyncstream(std::cout) << "\033[31m[-] WSA error code: " << WSAGetLastError() << "\033[0m\n";
+                    #elif defined(LINUX)
+                        std::osyncstream(std::cout) << "\033[31m[-] Error code: " << errno << "\033[0m\n";
+                        std::osyncstream(std::cout) << "\033[31m[-] Error message: " << strerror(errno) << "\033[0m\n";
+                    #endif
+                    throw std::runtime_error("Failed to accept new connection");
+                }
 
-							throw std::runtime_error("Failed to read client request");
-						}
+                std::unique_lock<std::mutex> lock(queueMutex);
+                tasks.push([this, newConnection]() {
+                    std::osyncstream(std::osyncstream(std::cout)) << "\033[1;32m[+] Accepted new connection...\033[0m\n";
+                    this->onConnect.Invoke(newConnection);
 
-						#ifdef API_DEBUG
-							std::cout << "\033[1;34m[*] Request data:\n";
-							// split data by new line
-							std::vector<std::string> split = CppHttp::Net::Request::Split(data, '\n');
-							for (int i = 0; i < split.size(); ++i) {
-								std::cout << "	" << split[i] << '\n';
-							}
-							std::cout << "\033[0m";
-						#endif
+                    std::unique_ptr<char[]> buffer = std::make_unique<char[]>(4096);
 
-						req = Request(data, this->newConnection);
-						this->onReceive.Invoke(req);
+                    memset(buffer.get(), 0, 4096);
 
-						this->onDisconnect.Invoke(this->newConnection);
-						closesocket(this->newConnection);
+                    size_t bytesReceived = recv(newConnection, buffer.get(), 4096, 0);
 
-						delete[] buffer;
-					}
-				}
+                    if (bytesReceived < 0) {
+                        std::osyncstream(std::cout) << "\033[31m[-] Failed to read client request\033[0m\n"; 
+                        #ifdef WINDOWS
+                            std::osyncstream(std::cout) << "\033[31m[-] WSA error code: " << WSAGetLastError() << "\033[0m\n";
+                        #elif defined(LINUX)
+                            std::osyncstream(std::cout) << "\033[31m[-] Error code: " << errno << "\033[0m\n";
+                            std::osyncstream(std::cout) << "\033[31m[-] Error message: " << strerror(errno) << "\033[0m\n";
+                        #endif
+                        closesocket(newConnection);
+                        throw std::runtime_error("Failed to read client request");
+                    }
+                    else if (bytesReceived == 0) {
+						std::osyncstream(std::cout) << "\033[31m[-] Client disconnected\033[0m\n";
+						closesocket(newConnection);
 
-				void InitWSA() {
-					if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-						std::cout << "\033[31m[-] Failed to initialise WSA...\033[0m\n";
-						std::cout << "\033[31m[-] Error code: " << WSAGetLastError() << "\033[0m\n";
-						throw std::runtime_error("Failed to initialise WSA");
-					}
-					std::cout << "\033[1;32m[+] Initialised WSA\033[0m\n";
-				}
-		};
-	}
-}
+                        #ifdef WINDOWS
+                            WSACleanup();
+                        #endif
+
+						return;
+                    }
+
+                    std::osyncstream(std::cout) << "\033[1;32m[+] Received client request\033[0m\n";
+
+                    std::string data = "";
+                    data = std::string(buffer.get());
+
+                    if (data == "") {
+                        std::osyncstream(std::cout) << "\033[31m[-] Failed to read client request\033[0m\n";
+                        #ifdef WINDOWS
+                            std::osyncstream(std::cout) << "\033[31m[-] WSA error code: " << WSAGetLastError() << "\033[0m\n";
+                        #elif defined(LINUX)
+                            std::osyncstream(std::cout) << "\033[31m[-] Error code: " << errno << "\033[0m\n";
+                            std::osyncstream(std::cout) << "\033[31m[-] Error message: " << strerror(errno) << "\033[0m\n";
+                        #endif
+                        closesocket(newConnection);
+                        throw std::runtime_error("Failed to read client request");
+                    }
+
+                    #ifdef API_DEBUG
+                        std::osyncstream(std::cout) << "\033[1;34m[*] Request data:\n";
+                        std::vector<std::string> split = CppHttp::Net::Request::Split(data, '\n');
+                        for (int i = 0; i < split.size(); ++i) {
+                            std::osyncstream(std::cout) << "    " << split[i] << '\n';
+                        }
+                        std::osyncstream(std::cout) << "\033[0m";
+                    #endif
+
+                    Request req = Request(data, newConnection);
+                    this->onReceive.Invoke(req);
+
+                    this->onDisconnect.Invoke(newConnection);
+                    closesocket(newConnection);
+                });
+
+                lock.unlock();
+                condition.notify_one();
+            }
+
+            #ifdef WINDOWS
+                void InitWSA() {
+                    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+                        std::cout << "\033[31m[-] Failed to initialise WSA...\033[0m\n";
+                        std::cout << "\033[31m[-] Error code: " << WSAGetLastError() << "\033[0m\n";
+                        throw std::runtime_error("Failed to initialise WSA");
+                    }
+                    std::cout << "\033[1;32m[+] Initialised WSA\033[0m\n";
+                }
+            #endif
+        };
+    };
+};
