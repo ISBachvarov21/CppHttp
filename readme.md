@@ -6,7 +6,7 @@
 
 # Examples
 
-### Hello, World!
+## [Hello, World!](https://github.com/ISBachvarov21/CppHttp/tree/main/CppHttp/CppHttp/examples/hello)
 ```cpp
 #include <CppHttp.hpp>
 #include <iostream>
@@ -37,5 +37,54 @@ int main(int argc, char** argv) {
 
 	server.Listen("0.0.0.0", 80, std::thread::hardware_concurrency());
 }
+```
+## [Docker container with cmake](https://github.com/ISBachvarov21/CppHttp/tree/main/CppHttp/CppHttp/examples/docker)
 
+Dockerfile
+```dockerfile
+FROM alpine:3.19.1
+
+RUN apk update
+RUN apk add coreutils
+RUN apk add build-base
+RUN apk add cmake
+
+WORKDIR /server
+
+COPY . .
+
+RUN cmake -S . -B build
+RUN cmake --build build
+
+# copy build files to /app
+RUN mkdir /app
+RUN cp -r build/* /app
+
+EXPOSE 80
+
+CMD [ "stdbuf", "-oL", "./build/CppHttp" ]
+```
+
+docker-compose.yml
+```yaml
+version: '3.9'
+
+services:
+  cpphttp:
+    build: .
+    command: sh -c "stdbuf -oL ./build/CppHttp"
+    ports:
+      - "80:80"
+      - "8080:8080"
+```
+
+CmakeLists.txt
+```cmake
+include_directories("./src/dependencies/CppHttp/include")
+
+add_executable (CppHttp "src/main.cpp")
+
+if (CMAKE_VERSION VERSION_GREATER 3.12)
+  set_property(TARGET CppHttp PROPERTY CXX_STANDARD 20)
+endif()
 ```
