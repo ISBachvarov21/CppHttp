@@ -3,9 +3,7 @@
 #include <string>
 #include <tuple>
 
-using returnType = std::tuple<CppHttp::Net::ResponseType, std::string, std::optional<std::vector<std::string>>>;
-
-returnType Hello(CppHttp::Net::Request req) {
+HttpResponse Hello(CppHttp::Net::Request req) {
 	std::string body = "Hello, World!";
 	return std::make_tuple(CppHttp::Net::ResponseType::OK, body, std::optional<std::vector<std::string>>(false));
 }
