@@ -1,9 +1,6 @@
-version: '3.9'
-
 services:
-  cpphttp:
+  docker:
     build: .
-    command: sh -c "stdbuf -oL ./build/CppHttp"
+    command: sh -c "stdbuf -oL ./build/docker"
     ports:
       - "80:80"
-      - "8080:8080"

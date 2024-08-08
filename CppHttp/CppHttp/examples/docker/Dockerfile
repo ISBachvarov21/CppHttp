@@ -1,21 +1,25 @@
-FROM alpine:3.19.1
+FROM gcc AS development
 
-RUN apk update
-RUN apk add coreutils
-RUN apk add build-base
-RUN apk add cmake
+WORKDIR /server/
 
-WORKDIR /server
+RUN apt-get update
+
+RUN apt-get install -y cmake
+
+COPY src/dependencies .
 
 COPY . .
+
+FROM development AS builder
 
 RUN cmake -S . -B build
 RUN cmake --build build
 
-# copy build files to /app
 RUN mkdir /app
 RUN cp -r build/* /app
 
+FROM builder AS production
+
 EXPOSE 80
 
-CMD [ "stdbuf", "-oL", "./build/CppHttp" ]
+CMD [ "stdbuf", "-oL", "./build/docker" ]

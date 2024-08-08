@@ -247,9 +247,7 @@ namespace CppHttp {
                     }
                     #pragma endregion
 
-                    std::osyncstream(std::cout) << "\033[1;32m[+] Received " << bytesReceived << " bytes\033[0m\n";
-
-                    if (bytesReceived < 0) {
+                    if (bytesReceived < 0 || (int)(*buffer.get()) == NULL) {
                         std::osyncstream(std::cout) << "\033[31m[-] Failed to read client request\033[0m\n";
                         #ifdef WINDOWS
                         std::osyncstream(std::cout) << "\033[31m[-] WSA error code: " << WSAGetLastError() << "\033[0m\n";
@@ -258,6 +256,12 @@ namespace CppHttp {
                         std::osyncstream(std::cout) << "\033[31m[-] Error message: " << strerror(errno) << "\033[0m\n";
                         #endif
                         closesocket(newConnection);
+
+                        #ifdef WINDOWS
+                        WSACleanup();
+                        #endif
+                        
+                        return;
                     }
                     else if (bytesReceived == 0) {
                         std::osyncstream(std::cout) << "\033[31m[-] Client disconnected\033[0m\n";
@@ -269,12 +273,6 @@ namespace CppHttp {
 
                         return;
                     }
-
-                    //std::fstream file("test.pdf", std::ios::out | std::ios::app);
-
-                    //file.write(buffer, bytesReceived);
-
-                    //file.close();
 
                     std::osyncstream(std::cout) << "\033[1;32m[+] Received client request\033[0m\n";
 
@@ -289,6 +287,12 @@ namespace CppHttp {
                         std::osyncstream(std::cout) << "\033[31m[-] Error message: " << strerror(errno) << "\033[0m\n";
                         #endif
                         closesocket(newConnection);
+
+                        #ifdef WINDOWS
+                        WSACleanup();
+                        #endif
+
+                        return;
                     }
 
                     #ifdef API_DEBUG

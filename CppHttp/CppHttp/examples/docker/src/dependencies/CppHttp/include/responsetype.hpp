@@ -24,6 +24,9 @@ namespace CppHttp {
 			// STATUS CODE: 401
 			NOT_AUTHORIZED = 401,
 
+			// STATUS CODE: 403
+			FORBIDDEN = 403,
+
 			// STATUS CODE: 200
 			JSON = 1,
 
