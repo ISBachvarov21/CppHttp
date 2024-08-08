@@ -11,27 +11,28 @@
 #include <mutex>
 #include <condition_variable>
 #include <syncstream>
+#include <fstream>
 
 #ifdef _WIN32 || _WIN64 || _MSC_VER
-    #define WIN32_LEAN_AND_MEAN
-    #define _WINSOCK_DEPRECATED_NO_WARNINGS
-    #define WINDOWS
-    #include <Windows.h>
-    #include <WinSock2.h>
-    #include <WS2tcpip.h>
+#define WIN32_LEAN_AND_MEAN
+#define _WINSOCK_DEPRECATED_NO_WARNINGS
+#define WINDOWS
+#include <Windows.h>
+#include <WinSock2.h>
+#include <WS2tcpip.h>
 
-    #pragma comment (lib, "Ws2_32.lib")
+#pragma comment (lib, "Ws2_32.lib")
 #elif defined(__linux__) || defined(__APPLE__)
-    #include <sys/socket.h>
-    #include <netinet/in.h>
-    #include <arpa/inet.h>
-    #include <unistd.h>
-    #include <fcntl.h>
-    #define SOCKET int
-    #define INVALID_SOCKET -1
-    #define LINUX
-    #define closesocket close
-	#define ioctlsocket ioctl
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+#include <fcntl.h>
+#define SOCKET int
+#define INVALID_SOCKET -1
+#define LINUX
+#define closesocket close
+#define ioctlsocket ioctl
 #endif
 
 namespace CppHttp {
@@ -39,9 +40,9 @@ namespace CppHttp {
         class TcpListener {
         public:
             TcpListener() {
-                #ifdef WINDOWS
-                    this->InitWSA();
-                #endif
+            #ifdef WINDOWS
+                this->InitWSA();
+            #endif
             }
             ~TcpListener() {
                 this->Close();
@@ -54,10 +55,10 @@ namespace CppHttp {
                     std::cout << "\033[31m[-] Failed to create socket...\033[0m\n";
 
                     #ifdef WINDOWS
-                        std::cout << "\033[31m[-] WSA error code: " << WSAGetLastError() << "\033[0m\n";
+                    std::cout << "\033[31m[-] WSA error code: " << WSAGetLastError() << "\033[0m\n";
                     #elif defined(LINUX)
-						std::cout << "\033[31m[-] Error code: " << errno << "\033[0m\n";
-                        std::cout << "\033[31m[-] Error message: " << strerror(errno) << "\033[0m\n";
+                    std::cout << "\033[31m[-] Error code: " << errno << "\033[0m\n";
+                    std::cout << "\033[31m[-] Error message: " << strerror(errno) << "\033[0m\n";
                     #endif
 
                     throw std::runtime_error("Failed to create socket");
@@ -72,21 +73,21 @@ namespace CppHttp {
                 this->server.sin_family = AF_INET;
 
                 #ifdef WINDOWS
-                    this->server.sin_addr.S_un.S_addr = inet_addr(ip);
+                this->server.sin_addr.S_un.S_addr = inet_addr(ip);
                 #elif defined(LINUX)
-                    this->server.sin_addr.s_addr = inet_addr(ip);
+                this->server.sin_addr.s_addr = inet_addr(ip);
                 #endif
 
                 this->server.sin_port = htons(port);
                 this->serverLen = sizeof(this->server);
                 if (bind(this->listener, (struct sockaddr*)&this->server, this->serverLen) != 0) {
                     std::cout << "\033[31m[-] Failed to bind socket...\033[0m\n";
-                    
+
                     #ifdef WINDOWS
-                        std::cout << "\033[31m[-] WSA error code: " << WSAGetLastError() << "\033[0m\n";
+                    std::cout << "\033[31m[-] WSA error code: " << WSAGetLastError() << "\033[0m\n";
                     #elif defined(LINUX)
-                        std::cout << "\033[31m[-] Error code: " << errno << "\033[0m\n";
-                        std::cout << "\033[31m[-] Error message: " << strerror(errno) << "\033[0m\n";
+                    std::cout << "\033[31m[-] Error code: " << errno << "\033[0m\n";
+                    std::cout << "\033[31m[-] Error message: " << strerror(errno) << "\033[0m\n";
                     #endif
                     throw std::runtime_error("Failed to bind socket");
                 }
@@ -94,12 +95,12 @@ namespace CppHttp {
 
                 int backlog = 20;
                 if (listen(this->listener, maxConnections) != 0) {
-                    std::cout << "\033[31m[-] Failed to listen...\033[0m\n"; 
+                    std::cout << "\033[31m[-] Failed to listen...\033[0m\n";
                     #ifdef WINDOWS
-                        std::cout << "\033[31m[-] WSA error code: " << WSAGetLastError() << "\033[0m\n";
+                    std::cout << "\033[31m[-] WSA error code: " << WSAGetLastError() << "\033[0m\n";
                     #elif defined(LINUX)
-                        std::cout << "\033[31m[-] Error code: " << errno << "\033[0m\n";
-                        std::cout << "\033[31m[-] Error message: " << strerror(errno) << "\033[0m\n";
+                    std::cout << "\033[31m[-] Error code: " << errno << "\033[0m\n";
+                    std::cout << "\033[31m[-] Error message: " << strerror(errno) << "\033[0m\n";
                     #endif
 
                     throw std::runtime_error("Failed to listen");
@@ -122,9 +123,9 @@ namespace CppHttp {
 
                 closesocket(this->listener);
 
-                #ifdef WINDOWS
-                    WSACleanup();
-                #endif
+#ifdef WINDOWS
+                WSACleanup();
+#endif
             }
 
             void SetOnConnect(std::function<void(SOCKET)> callback) {
@@ -140,17 +141,17 @@ namespace CppHttp {
             }
 
             void SetBlocking(bool blocking) {
-                #ifdef WINDOWS
-                    u_long mode = blocking ? 0 : 1;
-                    ioctlsocket(this->listener, FIONBIO, &mode);
-                #elif defined(LINUX)
-                    int flags = fcntl(this->listener, F_GETFL, 0);
-                    if (blocking)
-                        flags &= ~O_NONBLOCK;
-                    else
-                        flags |= O_NONBLOCK;
-                    fcntl(this->listener, F_SETFL, flags);
-                #endif
+#ifdef WINDOWS
+                u_long mode = blocking ? 0 : 1;
+                ioctlsocket(this->listener, FIONBIO, &mode);
+#elif defined(LINUX)
+                int flags = fcntl(this->listener, F_GETFL, 0);
+                if (blocking)
+                    flags &= ~O_NONBLOCK;
+                else
+                    flags |= O_NONBLOCK;
+                fcntl(this->listener, F_SETFL, flags);
+#endif
             }
 
 
@@ -158,9 +159,9 @@ namespace CppHttp {
             SOCKET listener = INVALID_SOCKET;
             sockaddr_in server;
 
-            #ifdef WINDOWS
-                WSADATA wsaData;
-            #endif
+#ifdef WINDOWS
+            WSADATA wsaData;
+#endif
 
             //Request req = Request();
 
@@ -189,88 +190,120 @@ namespace CppHttp {
                             }
                             task();
                         }
-                    });
+                        });
                 }
             }
 
             void Accept() {
                 #ifdef WINDOWS
-                    SOCKET newConnection = accept(listener, (SOCKADDR*)&this->server, &this->serverLen);
+                SOCKET newConnection = accept(listener, (SOCKADDR*)&this->server, &this->serverLen);
                 #elif defined(LINUX)
-                    SOCKET newConnection = accept(listener, (struct sockaddr*)&this->server, (socklen_t*)&this->serverLen);
+                SOCKET newConnection = accept(listener, (struct sockaddr*)&this->server, (socklen_t*)&this->serverLen);
                 #endif
 
                 if (newConnection == INVALID_SOCKET) {
-                    std::osyncstream(std::osyncstream(std::cout)) << "\033[31m[-] Failed to accept new connection...\033[0m\n"; 
+                    std::osyncstream(std::osyncstream(std::cout)) << "\033[31m[-] Failed to accept new connection...\033[0m\n";
                     #ifdef WINDOWS
-                        std::osyncstream(std::cout) << "\033[31m[-] WSA error code: " << WSAGetLastError() << "\033[0m\n";
+                    std::osyncstream(std::cout) << "\033[31m[-] WSA error code: " << WSAGetLastError() << "\033[0m\n";
                     #elif defined(LINUX)
-                        std::osyncstream(std::cout) << "\033[31m[-] Error code: " << errno << "\033[0m\n";
-                        std::osyncstream(std::cout) << "\033[31m[-] Error message: " << strerror(errno) << "\033[0m\n";
+                    std::osyncstream(std::cout) << "\033[31m[-] Error code: " << errno << "\033[0m\n";
+                    std::osyncstream(std::cout) << "\033[31m[-] Error message: " << strerror(errno) << "\033[0m\n";
                     #endif
-                    throw std::runtime_error("Failed to accept new connection");
                 }
+
 
                 std::unique_lock<std::mutex> lock(queueMutex);
                 tasks.push([this, newConnection]() {
                     std::osyncstream(std::osyncstream(std::cout)) << "\033[1;32m[+] Accepted new connection...\033[0m\n";
                     this->onConnect.Invoke(newConnection);
 
-                    std::unique_ptr<char[]> buffer = std::make_unique<char[]>(4096);
+                    // set socket to timeout after 500 ms
+                    struct timeval tv;
+                    tv.tv_sec = 0;
+                    tv.tv_usec = 100000;
+                    setsockopt(newConnection, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
 
-                    memset(buffer.get(), 0, 4096);
+                    std::unique_ptr<char[]> buffer = std::make_unique<char[]>(10000000);
 
-                    size_t bytesReceived = recv(newConnection, buffer.get(), 4096, 0);
+                    //memset(buffer, 0, 10000000);
+
+                    size_t bytesReceived = 0;
+
+                    bytesReceived = recv(newConnection, buffer.get(), 65535, 0);
+
+                    std::string contentLength = CppHttp::Utils::GetHeader(std::string(buffer.get()), "Content-Length");
+
+                    #pragma region If content length is specified, continue reading until the body is fully received
+                    if (contentLength != "") {
+                        do {
+                            int bytesReceivedTemp = recv(newConnection, &buffer.get()[bytesReceived], 65535, 0);
+                            
+                            if (bytesReceivedTemp < 1) {
+                                break;
+                            }
+
+                            bytesReceived += bytesReceivedTemp;
+                        } while (CppHttp::Utils::GetBody(std::string(buffer.get())).length() < std::stoi(contentLength));
+                    }
+                    #pragma endregion
+
+                    std::osyncstream(std::cout) << "\033[1;32m[+] Received " << bytesReceived << " bytes\033[0m\n";
 
                     if (bytesReceived < 0) {
-                        std::osyncstream(std::cout) << "\033[31m[-] Failed to read client request\033[0m\n"; 
+                        std::osyncstream(std::cout) << "\033[31m[-] Failed to read client request\033[0m\n";
                         #ifdef WINDOWS
-                            std::osyncstream(std::cout) << "\033[31m[-] WSA error code: " << WSAGetLastError() << "\033[0m\n";
+                        std::osyncstream(std::cout) << "\033[31m[-] WSA error code: " << WSAGetLastError() << "\033[0m\n";
                         #elif defined(LINUX)
-                            std::osyncstream(std::cout) << "\033[31m[-] Error code: " << errno << "\033[0m\n";
-                            std::osyncstream(std::cout) << "\033[31m[-] Error message: " << strerror(errno) << "\033[0m\n";
+                        std::osyncstream(std::cout) << "\033[31m[-] Error code: " << errno << "\033[0m\n";
+                        std::osyncstream(std::cout) << "\033[31m[-] Error message: " << strerror(errno) << "\033[0m\n";
                         #endif
                         closesocket(newConnection);
-                        throw std::runtime_error("Failed to read client request");
                     }
                     else if (bytesReceived == 0) {
-						std::osyncstream(std::cout) << "\033[31m[-] Client disconnected\033[0m\n";
-						closesocket(newConnection);
+                        std::osyncstream(std::cout) << "\033[31m[-] Client disconnected\033[0m\n";
+                        closesocket(newConnection);
 
                         #ifdef WINDOWS
-                            WSACleanup();
+                        WSACleanup();
                         #endif
 
-						return;
+                        return;
                     }
+
+                    //std::fstream file("test.pdf", std::ios::out | std::ios::app);
+
+                    //file.write(buffer, bytesReceived);
+
+                    //file.close();
 
                     std::osyncstream(std::cout) << "\033[1;32m[+] Received client request\033[0m\n";
 
-                    std::string data = "";
-                    data = std::string(buffer.get());
+                    std::string data = std::string(buffer.get());
 
                     if (data == "") {
                         std::osyncstream(std::cout) << "\033[31m[-] Failed to read client request\033[0m\n";
                         #ifdef WINDOWS
-                            std::osyncstream(std::cout) << "\033[31m[-] WSA error code: " << WSAGetLastError() << "\033[0m\n";
+                        std::osyncstream(std::cout) << "\033[31m[-] WSA error code: " << WSAGetLastError() << "\033[0m\n";
                         #elif defined(LINUX)
-                            std::osyncstream(std::cout) << "\033[31m[-] Error code: " << errno << "\033[0m\n";
-                            std::osyncstream(std::cout) << "\033[31m[-] Error message: " << strerror(errno) << "\033[0m\n";
+                        std::osyncstream(std::cout) << "\033[31m[-] Error code: " << errno << "\033[0m\n";
+                        std::osyncstream(std::cout) << "\033[31m[-] Error message: " << strerror(errno) << "\033[0m\n";
                         #endif
                         closesocket(newConnection);
-                        throw std::runtime_error("Failed to read client request");
                     }
 
                     #ifdef API_DEBUG
-                        std::osyncstream(std::cout) << "\033[1;34m[*] Request data:\n";
-                        std::vector<std::string> split = CppHttp::Net::Request::Split(data, '\n');
-                        for (int i = 0; i < split.size(); ++i) {
-                            std::osyncstream(std::cout) << "    " << split[i] << '\n';
-                        }
-                        std::osyncstream(std::cout) << "\033[0m";
+                    std::osyncstream(std::cout) << "\033[1;34m[*] Request data:\n";
+                    std::vector<std::string> split = CppHttp::Utils::Split(data, '\n');
+                    for (int i = 0; i < split.size(); ++i) {
+                        std::osyncstream(std::cout) << "    " << split[i] << '\n';
+                    }
+                    std::osyncstream(std::cout) << "\033[0m";
                     #endif
 
                     Request req = Request(data, newConnection);
+                    req.m_info.ubody = CppHttp::Utils::GetU8Body(buffer.get(), bytesReceived);
+                    req.m_info.uoriginal = std::u8string(buffer.get(), buffer.get() + bytesReceived);
+
                     this->onReceive.Invoke(req);
 
                     this->onDisconnect.Invoke(newConnection);
@@ -282,14 +315,14 @@ namespace CppHttp {
             }
 
             #ifdef WINDOWS
-                void InitWSA() {
-                    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-                        std::cout << "\033[31m[-] Failed to initialise WSA...\033[0m\n";
-                        std::cout << "\033[31m[-] Error code: " << WSAGetLastError() << "\033[0m\n";
-                        throw std::runtime_error("Failed to initialise WSA");
-                    }
-                    std::cout << "\033[1;32m[+] Initialised WSA\033[0m\n";
+            void InitWSA() {
+                if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+                    std::cout << "\033[31m[-] Failed to initialise WSA...\033[0m\n";
+                    std::cout << "\033[31m[-] Error code: " << WSAGetLastError() << "\033[0m\n";
+                    throw std::runtime_error("Failed to initialise WSA");
                 }
+                std::cout << "\033[1;32m[+] Initialised WSA\033[0m\n";
+            }
             #endif
         };
     };
