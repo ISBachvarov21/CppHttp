@@ -8,18 +8,16 @@
 
 ## [Hello, World!](https://github.com/ISBachvarov21/CppHttp/tree/main/CppHttp/CppHttp/examples/hello)
 ```cpp
-#include "../include/CppHttp.hpp"
+#include <CppHttp.hpp>
 #include <iostream>
 #include <optional>
 #include <string>
 #include <vector>
 #include <tuple>
 
-using returnType = std::tuple<CppHttp::Net::ResponseType, std::string, std::optional<std::vector<std::string>>>;
-
-returnType Hello(CppHttp::Net::Request req) {
+HttpResponse Hello(CppHttp::Net::Request req) {
 	std::string body = "Hello, World!";
-	return std::make_tuple(CppHttp::Net::ResponseType::OK, body, std::nullopt);
+	return std::make_tuple(CppHttp::Net::ResponseType::OK, body, std::optional<std::vector<std::string>>(false));
 }
 
 int main(int argc, char** argv) {
@@ -27,9 +25,11 @@ int main(int argc, char** argv) {
 	CppHttp::Net::TcpListener server;
 	server.CreateSocket();
 
+	int requestCount = 0;
+
 	auto onReceive = [&](CppHttp::Net::Request req) {
 		router.Handle(req);
-	};
+		};
 
 	server.SetOnReceive(onReceive);
 
@@ -42,49 +42,53 @@ int main(int argc, char** argv) {
 
 Dockerfile
 ```dockerfile
-FROM alpine:3.19.1
+FROM gcc AS development
 
-RUN apk update
-RUN apk add coreutils
-RUN apk add build-base
-RUN apk add cmake
+WORKDIR /server/
 
-WORKDIR /server
+RUN apt-get update
+
+RUN apt-get install -y cmake
+
+COPY src/dependencies .
 
 COPY . .
+
+FROM development AS builder
 
 RUN cmake -S . -B build
 RUN cmake --build build
 
-# copy build files to /app
 RUN mkdir /app
 RUN cp -r build/* /app
 
+FROM builder AS production
+
 EXPOSE 80
 
-CMD [ "stdbuf", "-oL", "./build/CppHttp" ]
+CMD [ "stdbuf", "-oL", "./build/docker" ]
 ```
 
 docker-compose.yml
 ```yaml
-version: '3.9'
-
 services:
-  cpphttp:
+  docker:
     build: .
-    command: sh -c "stdbuf -oL ./build/CppHttp"
+    command: sh -c "stdbuf -oL ./build/docker"
     ports:
       - "80:80"
-      - "8080:8080"
 ```
 
 CmakeLists.txt
 ```cmake
-include_directories("./src/dependencies/CppHttp/include")
+cmake_minimum_required(VERSION 3.13)
+project("CppHttp")
 
-add_executable (CppHttp "src/main.cpp")
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/src/dependencies/cpphttp/include")
 
-if (CMAKE_VERSION VERSION_GREATER 3.12)
-  set_property(TARGET CppHttp PROPERTY CXX_STANDARD 20)
-endif()
+file (GLOB SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
+
+add_executable(docker ${SOURCES})
+
+set_property(TARGET docker PROPERTY CXX_STANDARD 20)
 ```
